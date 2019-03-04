@@ -6,6 +6,7 @@ import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.util.Bytes
 
 object HBaseHelperAPI {
+  private var cachedTable : Table = _;
   def connectToHBase(coreSitePath: String, hbaseSitePath: String, hbaseTalbeName: String): Table = {
     val hbaseConf = HBaseConfiguration.create()
     hbaseConf.addResource(new Path(coreSitePath))
@@ -14,6 +15,18 @@ object HBaseHelperAPI {
     val connection = ConnectionFactory.createConnection(hbaseConf)
     val table = connection.getTable(TableName.valueOf(hbaseTalbeName))
     table
+  }
+
+  def connectToHBaseCached(coreSitePath: String, hbaseSitePath: String, hbaseTalbeName: String): Table = {
+    if(cachedTable==null){
+      cachedTable=connectToHBase(coreSitePath,hbaseSitePath,hbaseTalbeName)
+    }
+    cachedTable
+  }
+
+  def clearCachedConnection() = {
+    cachedTable.close()
+    cachedTable=null
   }
 
   def getData(table: Table, rowKey: Array[Byte], colFamily: Array[Byte], colQualifier: Array[Byte]): String = {

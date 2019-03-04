@@ -1,5 +1,8 @@
 package HBaseHelperAPI
 
+import java.io.ByteArrayInputStream
+import java.nio.charset.StandardCharsets
+
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hbase.{HBaseConfiguration, TableName}
 import org.apache.hadoop.hbase.client._
@@ -17,9 +20,19 @@ object HBaseHelperAPI {
     table
   }
 
-  def connectToHBaseCached(coreSitePath: String, hbaseSitePath: String, hbaseTalbeName: String): Table = {
+  def connectToHBaseWithConf(coreSiteConf: String, hbaseSiteConf: String, hbaseTalbeName: String): Table = {
+    val hbaseConf = HBaseConfiguration.create()
+    hbaseConf.addResource(new ByteArrayInputStream(coreSiteConf.getBytes(StandardCharsets.UTF_8)))
+    hbaseConf.addResource(new ByteArrayInputStream(hbaseSiteConf.getBytes(StandardCharsets.UTF_8)))
+
+    val connection = ConnectionFactory.createConnection(hbaseConf)
+    val table = connection.getTable(TableName.valueOf(hbaseTalbeName))
+    table
+  }
+
+  def connectToHBaseCached(coreSiteConfcoreSiteConf: String, hbaseSiteConf: String, hbaseTalbeName: String): Table = {
     if(cachedTable==null){
-      cachedTable=connectToHBase(coreSitePath,hbaseSitePath,hbaseTalbeName)
+      cachedTable=connectToHBaseWithConf(hbaseSiteConf,hbaseSiteConf,hbaseTalbeName)
     }
     cachedTable
   }

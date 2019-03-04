@@ -64,6 +64,13 @@ object test {
     }
   }
 
+
+  def readStrFromFile(path: String): String = {
+    val source = scala.io.Source.fromFile(path)
+    val lines = try source.mkString finally source.close()
+    lines
+  }
+
   def main(args: Array[String]): Unit = {
     if (args.length == 0) {
       println("arguments: core-site path, hbase-site path, model_path, table name")
@@ -73,8 +80,6 @@ object test {
       }
     }
     // create the socket server object
-    val server = new ServerSocket(10001)
-    val socketFinishLoading = server.accept()
 
     val conf = Engine.createSparkConf().setAppName("Test ResNet")
       .set("spark.akka.frameSize", 64.toString)
@@ -88,7 +93,11 @@ object test {
 
 
     //val table = connectToHBaseCached(args(0), args(1), args(3))
-    val hbaseconf = sc.broadcast((args(0), args(1), args(3)))
+    val coreSiteConf = readStrFromFile(args(0))
+    val hbaseSiteConf = readStrFromFile(args(1))
+    val hbaseconf = sc.broadcast((coreSiteConf, hbaseSiteConf, args(3)))
+
+    val table = connectToHBaseCached(coreSiteConf, hbaseSiteConf, args(3))
 
     val loadAndBcastModel = () => {
       val model = test.modelProcessing(Module.loadModule(args(2)))
@@ -102,20 +111,22 @@ object test {
       (model, bcastModel)
     }
 
-    var (model, bcastModel) = loadAndBcastModel()
-
     //init hbase connections
     sc.parallelize(1 to Engine.nodeNumber(), Engine.nodeNumber()).map( idx => {
       val conf = hbaseconf.value
       connectToHBaseCached(conf._1, conf._2, conf._3)
       idx
     }).count()
-    val table = connectToHBaseCached(args(0), args(1), args(3))
+
+    var (model, bcastModel) = loadAndBcastModel()
+
 
     println("============Finish loading===============")
 
 
 
+    val server = new ServerSocket(10001)
+    val socketFinishLoading = server.accept()
     val outFinishLoading = new PrintWriter(socketFinishLoading.getOutputStream, true)
     outFinishLoading.println("Finish loading")
     socketFinishLoading.close()
@@ -157,7 +168,7 @@ object test {
             val endIdx = startRow + Math.min( (idx+1) * itmPerNode, numOfImages)
             (Bytes.toBytes("%09d".format(startIdx)),Bytes.toBytes("%09d".format(endIdx)), endIdx-startIdx)
           })
-          val valRdd = sc.parallelize( pictureSplits , Engine.nodeNumber())
+          val rawDataset = sc.parallelize( pictureSplits , Engine.nodeNumber())
             .flatMap( arg => {
               val (startRow,stopRow,numOfImages) = arg
               val conf = hbaseconf.value
@@ -168,7 +179,7 @@ object test {
               val ret = scanGetData(table, startRow, stopRow, numOfImages, family, qualifiers)
               //table.close()
               ret
-          })
+          }).cache()
 
           //val numOfPredictions = retrievedStrings.length
           //println("predictions: " + numOfPredictions)
@@ -180,7 +191,7 @@ object test {
           val step = 120
           val numOfWindows = row * col
 
-          val validateSet = valRdd.flatMap(rowString => {
+          val validateSet = rawDataset.flatMap(rowString => {
             val rowKey: String = rowString.split(";")(0)
 
             val base64String: String = rowString.split(";")(1)
@@ -281,7 +292,8 @@ object test {
 
           }
 
-          val numOfPredictions = features.size
+          val numOfPredictions = rawDataset.count().toInt
+          println("predictions: " + numOfPredictions)
           println("==================Start Putting===================")
           var putList = new java.util.ArrayList[Put]()
           for (i <- 0 until numOfPredictions) {

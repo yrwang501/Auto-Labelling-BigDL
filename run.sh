@@ -4,8 +4,8 @@ $SPARK_HOME/bin/spark-submit --master "spark://ai-master-bigdl-0.sh.intel.com:70
     --driver-memory 4g --class com.intel.analytics.bigdl.models.resnet.test \
 	--total-executor-cores 48\
 	--executor-cores 24\
-    AI-Master-0.1.0-SNAPSHOT-jar-with-dependencies.jar \
-	/home/root/core-site.xml \
-	/home/root/hbase-site.xml \
+    target/AI-Master-0.1.0-SNAPSHOT-jar-with-dependencies.jar \
+	core-site.xml \
+	hbase-site.xml \
 	hdfs://ai-master-bigdl-0.sh.intel.com:8020/model_new_helper_API_10.obj \
 	kfb_512_100_test

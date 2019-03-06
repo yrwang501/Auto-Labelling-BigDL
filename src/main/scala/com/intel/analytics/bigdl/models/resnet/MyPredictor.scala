@@ -27,6 +27,7 @@ import com.intel.analytics.bigdl.transform.vision.image.{DistributedImageFrame, 
 import com.intel.analytics.bigdl.utils.{T, Table}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.util.LongAccumulator
 
 import scala.reflect.ClassTag
 
@@ -120,6 +121,7 @@ object MyPredictor {
 
   def predictImage[T: ClassTag](imageFrame: DistributedImageFrame,
                                 modelBroad: ModelBroadcast[T],
+                                progressAccu: LongAccumulator,
                                 outputLayer: String = null,
                                 shareBuffer: Boolean = false,
                                 predictKey: String = ImageFeature.predict,
@@ -141,6 +143,7 @@ object MyPredictor {
       partition.grouped(localBatchPerPartition).flatMap(imageFeatures => {
         MyPredictor.predictImageBatch[T](localModel, imageFeatures, outputLayer, predictKey,
           localToBatch, shareBuffer)
+        progressAccu.add(localBatchPerPartition)
         imageFeatures
       })
     })
@@ -234,10 +237,11 @@ class MyPredictor[T: ClassTag] private(
     */
   def predictImage(imageFrame: DistributedImageFrame,
                    broadcastModel: ModelBroadcast[T],
+                   progressAccu: LongAccumulator,
                    outputLayer: String = null,
                    shareBuffer: Boolean = false,
                    predictKey: String = ImageFeature.predict): DistributedImageFrame = {
-    MyPredictor.predictImage(imageFrame, broadcastModel, outputLayer, shareBuffer, predictKey, batchPerPartition,
+    MyPredictor.predictImage(imageFrame, broadcastModel, progressAccu, outputLayer, shareBuffer, predictKey, batchPerPartition,
       featurePaddingParam)
   }
 }

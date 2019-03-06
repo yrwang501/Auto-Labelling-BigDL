@@ -71,6 +71,25 @@
             <version>1.2.0</version>
 	    <scope>compile</scope>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.http4s/http4s-server -->
+        <dependency>
+            <groupId>org.http4s</groupId>
+            <artifactId>http4s-server_2.11</artifactId>
+            <version>0.18.22</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.http4s/http4s-dsl -->
+        <dependency>
+            <groupId>org.http4s</groupId>
+            <artifactId>http4s-dsl_2.11</artifactId>
+            <version>0.18.22</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.http4s/http4s-blaze-server -->
+        <dependency>
+            <groupId>org.http4s</groupId>
+            <artifactId>http4s-blaze-server_2.11</artifactId>
+            <version>0.18.22</version>
+        </dependency>
+
     </dependencies>
 
     <build>

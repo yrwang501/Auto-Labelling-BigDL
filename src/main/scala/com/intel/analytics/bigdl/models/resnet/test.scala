@@ -35,7 +35,7 @@ import org.apache.spark.util.LongAccumulator
 
 import scala.reflect.ClassTag
 import scala.util.Try
-import scala.util.control.Breaks.break
+import scala.util.control.Breaks._
 
 object test {
 
@@ -45,6 +45,9 @@ object test {
   var sc: SparkContext = _
   var model:AbstractModule[Activity, Activity, Float] = _
   var bcastModel:ModelBroadcast[Float] = _
+  val localProgress = new AtomicInteger()
+  var statusUpdateURL : String = _
+  var numOfPredictions = 0
 
   def modelProcessing[T](model: AbstractModule[Activity, Activity, T]): AbstractModule[Activity, Activity, T] = {
     val m = if (!model.isInstanceOf[Graph[T]]) model.toGraph() else model
@@ -53,13 +56,45 @@ object test {
     return m.asInstanceOf[StaticGraph[T]].toIRgraph().asInstanceOf[AbstractModule[Activity, Activity, T]]
   }
 
+  def onBatchDone(batchSize: Int): Unit =
+  {
+    if(!statusUpdateURL.isEmpty) {
 
+      if (localProgress.addAndGet(batchSize) % 80 == 0) { //fix-me: may not be correct when batchSize!=4
+        val url = new URL(statusUpdateURL)
+        val con = url.openConnection.asInstanceOf[HttpURLConnection]
+        con.setRequestMethod("GET")
+
+        val in = new BufferedReader(new InputStreamReader(con.getInputStream))
+        var inputLine: String = null
+        breakable {
+          try {
+            //println("GET")
+            while (true) {
+              inputLine = in.readLine
+              if (inputLine == null) {
+                in.close()
+                break
+              }
+            }
+            in.close()
+          }
+          catch {
+            case e: Exception => {
+              in.close()
+            }
+          }
+        }
+      }
+      println(localProgress.get())
+    }
+  }
 
 
   def predictImage[T : ClassTag](model: Module[T],
                       imageFrame: ImageFrame,
                       broadcastModel: ModelBroadcast[T],
-                                 progressAccu:LongAccumulator,
+                                 progressAccu:Int=>Unit,
                    outputLayer: String = null,
                    shareBuffer: Boolean = false,
                    batchPerPartition: Int = 4,
@@ -109,11 +144,11 @@ object test {
 
     println("===========Load module and connect to HBase table====================")
 
-
+    statusUpdateURL = updateURL.getOrElse("")
     //val table = connectToHBaseCached(args(0), args(1), args(3))
     coreSiteConf = readStrFromFile(coreSitePath)
     hbaseSiteConf = readStrFromFile(hbaseSitePath)
-    hbaseconf = sc.broadcast((coreSiteConf, hbaseSiteConf, hbaseTableName, updateURL.getOrElse("")))
+    hbaseconf = sc.broadcast((coreSiteConf, hbaseSiteConf, hbaseTableName, statusUpdateURL))
 
     table = connectToHBaseCached(coreSiteConf, hbaseSiteConf, hbaseTableName)
 
@@ -124,6 +159,7 @@ object test {
     sc.parallelize(1 to Engine.nodeNumber(), Engine.nodeNumber()).map(idx => {
       val conf = _hbaseconf.value
       connectToHBaseCached(conf._1, conf._2, conf._3)
+      statusUpdateURL = conf._4
       idx
     }).count()
 
@@ -139,6 +175,7 @@ object test {
     //val startRow = msgArgs(0).toInt
     //val stopRow = Bytes.toBytes(msgArgs(1))
     //val numOfImages = msgArgs(2).toInt
+    localProgress.set(0)
     val itmPerNode =  numOfImages/Engine.nodeNumber() + 1
     val pictureSplits = (0 until Engine.nodeNumber()).map(idx =>{
       val startIdx = startRow + idx * itmPerNode
@@ -148,6 +185,7 @@ object test {
     val _hbaseconf=hbaseconf
     val rawDataset = sc.parallelize( pictureSplits , Engine.nodeNumber())
       .flatMap( arg => {
+        localProgress.set(0)
         val (startRow,stopRow,numOfImages) = arg
         val conf = _hbaseconf.value
         val table = connectToHBaseCached(conf._1, conf._2, conf._3)
@@ -229,9 +267,8 @@ object test {
     println("===========transform over====================")
     println("===========Predict Image====================")
 
-    val accu = sc.longAccumulator("Progress Accumulator")
     sc.addSparkListener(new SparkListener {})
-    val result = predictImage(model, distributedImageFrame, bcastModel, accu).toDistributed()
+    val result = predictImage(model, distributedImageFrame, bcastModel, onBatchDone).toDistributed()
 
     println("====================select keys================")
     val keys = result.rdd.map(r => {
@@ -244,38 +281,11 @@ object test {
     }).cache()
     println("=================Print Result=======================")
 
-    val numOfPredictions = rawDataset.count().toInt
+    numOfPredictions = rawDataset.count().toInt
     println("predictions: " + numOfPredictions)
     println("==================Start Putting===================")
 
-    val cnt = new AtomicInteger()
-    if(!_hbaseconf.value._4.isEmpty){
-      val future = keys.foreachAsync(itm=>{
-        if(cnt.addAndGet(1)%10==0){
-          val url = new URL(_hbaseconf.value._4)
-          val con = url.openConnection.asInstanceOf[HttpURLConnection]
-          con.setRequestMethod("GET")
-          val in = new BufferedReader(new InputStreamReader(con.getInputStream))
-          var inputLine : String = null
-          try{
-            while (true){
-              inputLine = in.readLine
-              if(inputLine==null){
-                break
-              }
-            }
-            in.close()
-          }
-          catch{
-            case e: Exception=>{in.close()}
-          }
-        }
-      })
-      while(!future.isCompleted && !future.isCancelled){
-        Thread.sleep(1000)
-        println(accu.value)
-      }
-    }
+
     val features = keys.collect()
 
 

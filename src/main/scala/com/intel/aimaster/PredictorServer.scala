@@ -8,81 +8,80 @@ import com.intel.analytics.bigdl.models.resnet.test
 import cats.effect._
 import org.http4s._
 import org.http4s.dsl.io._
+import io.circe.Json
+import scala.concurrent.duration._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.http4s.server.blaze._
 import fs2.{Stream, StreamApp}
 import fs2.StreamApp.ExitCode
+import org.http4s.headers._
+import org.http4s.server.middleware._
 
 import scala.concurrent.{Await, Future}
 import org.http4s.server.blaze._
 object PredictorServer extends  StreamApp[IO]{
-  /*def main(args: Array[String]) {
-    import com.typesafe.config.ConfigFactory
-
-    implicit val system = ActorSystem("my-system", ConfigFactory.load(customConf))
-    implicit val materializer = ActorMaterializer()
-    // needed for the future flatMap/onComplete in the end
-    implicit val executionContext = system.dispatcher
-    test.init("core-site.xml", "hbase-site.xml",
-      "hdfs://ai-master-bigdl-0.sh.intel.com:8020/model_new_helper_API_10.obj", "kfb_512_100_test",
-      Some("http://chengguosu.sh.intel.com:13345/status"))
-    var progress = 0
-    val route =
-      pathPrefix("predict" / IntNumber / IntNumber) { (startRow, length) =>
-        get {
-          progress = 0
-          //test.doPredict(startRow, length)
-          complete(HttpEntity(ContentTypes.`application/json`, s"{start:${startRow},len:${length}}"))
-        }
-      } ~
-        path("updateStatus") {
-          get {
-            progress += 10
-            complete(HttpEntity(ContentTypes.`application/json`, s"{}"))
-          }
-        } ~
-        path("status") {
-          get {
-            complete(HttpEntity(ContentTypes.`application/json`, s"{progress:${progress}}"))
-          }
-        }
-
-    val bindingFuture = Http().bindAndHandle(route, "0.0.0.0", 13345)
-
-    println(s"Server online at http://localhost:13345/\nPress RETURN to stop...")
-    StdIn.readLine() // let it run until user presses return
-    bindingFuture
-      .flatMap(_.unbind()) // trigger unbinding from the port
-      .onComplete(_ => system.terminate()) // and shutdown when done
-  }*/
-
   override def stream(args: List[String], requestShutdown: IO[Unit]): Stream[IO, ExitCode] = {
-    var progress = new AtomicInteger()
-    test.init("core-site.xml", "hbase-site.xml",
-      "hdfs://ai-master-bigdl-0.sh.intel.com:8020/model_new_helper_API_10.obj", "kfb_512_100_test",
-      Some("http://chengguosu.sh.intel.com:13345/updateStatus"))
+    val progress = new AtomicInteger()
+    val modelInit = Future{
+      test.init(args(0), args(1),
+        args(2), args(3),
+        Some(args(4)))
+    }
+    println(args)
+    @volatile var isRunning = false
     val helloWorldService = HttpService[IO] {
       case GET -> Root / "hello" / name =>
         Ok(s"Hello, $name.")
       case GET -> Root / "predict" / startRow / length => {
-        progress.set(0)
-
-        Future{
-          test.doPredict(startRow.toInt, length.toInt)
+        if(!modelInit.isCompleted || isRunning){
+          Ok(s"""{"accepted":false,"start":$startRow,"len":$length}""")
+            .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
         }
-        Ok(s"{start:${startRow},len:${length}}")
+        else
+        {
+          isRunning=true
+          progress.set(0)
+          Future{
+            test.doPredict(startRow.toInt, length.toInt)
+            isRunning=false
+          }
+          Ok(s"""{"accepted":true,"start":$startRow,"len":$length}""")
+            .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
+        }
       }
       case GET -> Root / "updateStatus" =>{
-        progress.addAndGet(10)
+        progress.addAndGet(80)
         Ok(s"{}")
+          .map(_.withContentType(`Content-Type`(MediaType `application/json`)))
       }
       case GET -> Root / "status" =>{
         val pval=progress.get()
-        Ok(s"{progress:${pval}}")
+        val total=test.numOfPredictions * 16
+        val status = if(!modelInit.isCompleted){
+          "loading"
+        }
+        else if (isRunning){
+          "running"
+        }
+        else{
+          "idle"
+        }
+        Ok(s"""{"status":"$status", "progress":$pval, "total":$total}""")
+          .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
       }
 
     }
-    BlazeBuilder[IO].bindHttp(13345, "0.0.0.0").mountService(helloWorldService, "/").serve
+
+    val methodConfig = CORSConfig(
+      anyOrigin = true,
+      anyMethod = false,
+      allowedMethods = Some(Set("GET", "POST")),
+      allowCredentials = true,
+      maxAge = 1.day.toSeconds,
+      allowedHeaders = Some(Set("Content-Type"))
+    )
+
+    BlazeBuilder[IO].bindHttp(13345, "0.0.0.0").mountService(CORS(helloWorldService, methodConfig), "/").serve
   }
 }

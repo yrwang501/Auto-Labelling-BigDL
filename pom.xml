@@ -89,6 +89,13 @@
             <artifactId>http4s-blaze-server_2.11</artifactId>
             <version>0.18.22</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/io.circe/circe-parser -->
+        <dependency>
+            <groupId>io.circe</groupId>
+            <artifactId>circe-parser_2.11</artifactId>
+            <version>0.11.1</version>
+        </dependency>
+
 
     </dependencies>
 

@@ -121,7 +121,7 @@ object MyPredictor {
 
   def predictImage[T: ClassTag](imageFrame: DistributedImageFrame,
                                 modelBroad: ModelBroadcast[T],
-                                progressAccu: LongAccumulator,
+                                progressAccu: Int=>Unit,
                                 outputLayer: String = null,
                                 shareBuffer: Boolean = false,
                                 predictKey: String = ImageFeature.predict,
@@ -136,6 +136,7 @@ object MyPredictor {
       batchSize = partitionNum * batchPerPartition,
       partitionNum = Some(partitionNum),
       featurePaddingParam = featurePaddingParam), shareBuffer)
+    val batchSize = partitionNum * batchPerPartition
     val result = rdd.mapPartitions(partition => {
       val localModel = modelBroad.value()
       val localToBatch = toBatchBroad.value._1.cloneTransformer()
@@ -143,7 +144,7 @@ object MyPredictor {
       partition.grouped(localBatchPerPartition).flatMap(imageFeatures => {
         MyPredictor.predictImageBatch[T](localModel, imageFeatures, outputLayer, predictKey,
           localToBatch, shareBuffer)
-        progressAccu.add(localBatchPerPartition)
+        progressAccu(localBatchPerPartition)
         imageFeatures
       })
     })
@@ -237,7 +238,7 @@ class MyPredictor[T: ClassTag] private(
     */
   def predictImage(imageFrame: DistributedImageFrame,
                    broadcastModel: ModelBroadcast[T],
-                   progressAccu: LongAccumulator,
+                   progressAccu: Int=>Unit,
                    outputLayer: String = null,
                    shareBuffer: Boolean = false,
                    predictKey: String = ImageFeature.predict): DistributedImageFrame = {

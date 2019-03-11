@@ -23,7 +23,7 @@ import org.http4s.server.blaze._
 object PredictorServer extends  StreamApp[IO]{
   override def stream(args: List[String], requestShutdown: IO[Unit]): Stream[IO, ExitCode] = {
     val progress = new AtomicInteger()
-    val modelInit = Future{
+    var modelInit = Future{
       test.init(args(0), args(1),
         args(2), args(3),
         Some(args(4)))
@@ -49,6 +49,15 @@ object PredictorServer extends  StreamApp[IO]{
           Ok(s"""{"accepted":true,"start":$startRow,"len":$length}""")
             .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
         }
+      }
+      case GET -> Root / "reload" =>{
+        val success = !isRunning & modelInit.isCompleted
+        if(success)
+          modelInit = Future{
+            test.loadAndBcastModel(args(2))
+          }
+        Ok(s"""{"accepted":$success}""")
+          .map(_.withContentType(`Content-Type`(MediaType `application/json`)))
       }
       case GET -> Root / "updateStatus" =>{
         progress.addAndGet(80)

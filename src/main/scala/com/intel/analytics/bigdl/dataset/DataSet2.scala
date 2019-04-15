@@ -373,30 +373,6 @@ object DataSet  {
         val croppedBytes: Array[Byte] = subImage.getRaster.getDataBuffer.asInstanceOf[DataBufferByte].getData()
         imf(ImageFeature.bytes) = croppedBytes
         imf(ImageFeature.label) = label
-
-
-//        if(label == 2.0){
-//          val y = rawString.split(";")(1).split(",")(1).toInt
-//          val x = rawString.split(";")(1).split(",")(0).toInt
-//          val subImage = new BufferedImage(256, 256, 5)
-//          val g = subImage.getGraphics
-//          g.drawImage(image.getSubimage(y, x, 256, 256),0,0,null)
-//          g.dispose()
-//          val bytes: Array[Byte] = subImage.getRaster.getDataBuffer.asInstanceOf[DataBufferByte].getData()
-//          imf(ImageFeature.bytes) = bytes
-//          imf(ImageFeature.label) = label
-//        }else{
-//          val y = 100
-//          val x = 100
-//          val subImage = new BufferedImage(256, 256, 5)
-//          val g = subImage.getGraphics
-//          g.drawImage(image.getSubimage(y, x, 256, 256),0,0,null)
-//          g.dispose()
-//          val bytes: Array[Byte] = subImage.getRaster.getDataBuffer.asInstanceOf[DataBufferByte].getData()
-//          imf(ImageFeature.bytes) = bytes
-//          imf(ImageFeature.label) = label
-//        }
-
         imf(ImageFeature.originalSize) = (cropWidth, cropHeight, 3)
         imf
       }).filter(_[Tensor[Float]](ImageFeature.label).valueAt(1) <= classNum)
@@ -408,6 +384,9 @@ object DataSet  {
       rdd[ImageFeature](rddToImageFrame(inRdd, sc, classNum, partitionNum).toDistributed().rdd)
     }
 
+    private[bigdl] def imageFrameToImageFeatureDataset(inRdd: ImageFrame): DistributedDataSet[ImageFeature] = {
+      rdd[ImageFeature](inRdd.toDistributed().rdd)
+    }
   }
 
 }

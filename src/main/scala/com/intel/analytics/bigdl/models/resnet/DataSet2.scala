@@ -6,7 +6,8 @@ import com.intel.analytics.bigdl.dataset._
 import com.intel.analytics.bigdl.dataset.image._
 import com.intel.analytics.bigdl.dataset.image.{HFlip => JHFlip}
 import com.intel.analytics.bigdl.dataset.DataSet.SeqFileFolder2
-import com.intel.analytics.bigdl.transform.vision.image.{MTImageFeatureToBatch, MatToTensor, PixelBytesToMat}
+import com.intel.analytics.bigdl.transform.vision
+import com.intel.analytics.bigdl.transform.vision.image._
 import com.intel.analytics.bigdl.transform.vision.image.augmentation._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -164,6 +165,37 @@ object ImageNetDataSet2 extends ResNetDataSet {
     )
   }
 
+  def valD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int)
+  : DataSet[MiniBatch[Float]] = {
+    SeqFileFolder2.imageFrameToImageFeatureDataset(rdd).transform(
+      MTImageFeatureToBatch(
+        width = imageSize,
+        height = imageSize,
+        batchSize = batchSize,
+        transformer = PixelBytesToMat() ->
+          RandomResize(256, 256) ->
+          RandomCropper(224, 224, true, CropRandom) ->
+          ChannelScaledNormalizer(104, 117, 123, 0.0078125) ->
+          MatToTensor[Float](), toRGB = false
+      )
+    )
 
+  }
+
+  def trainD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int)
+  : DataSet[MiniBatch[Float]] = {
+    SeqFileFolder2.imageFrameToImageFeatureDataset(rdd).transform(
+      MTImageFeatureToBatch(
+        width = imageSize,
+        height = imageSize,
+        batchSize = batchSize,
+        transformer = PixelBytesToMat() ->
+          RandomAlterAspect() ->
+          RandomCropper(224, 224, true, CropRandom) ->
+          ChannelScaledNormalizer(104, 117, 123, 0.0078125) ->
+          MatToTensor[Float](), toRGB = false
+      )
+    )
+  }
 }
 

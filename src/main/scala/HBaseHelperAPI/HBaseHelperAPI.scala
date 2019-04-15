@@ -105,7 +105,6 @@ object HBaseHelperAPI {
     for (i <- 0 until numQualifiers){
       scanObj.addColumn(colFamily, colQualifiers(i))
     }
-
     val scanner = table.getScanner(scanObj)
     var resultArray = new Array[Result](length)
     try {
@@ -124,6 +123,26 @@ object HBaseHelperAPI {
       }
       dataStr
     })
+  }
+
+  def scanGetFullDataRaw(table: Table, startRow: Array[Byte], stopRow: Array[Byte], length: Int, colFamilyQualifiers: Array[(Array[Byte],Array[Byte])]): Array[Result] = {
+    val numQualifiers = colFamilyQualifiers.length
+    val scanObj = new Scan(startRow, stopRow)
+    colFamilyQualifiers.foreach( col =>
+      scanObj.addColumn(col._1, col._2)
+    )
+
+    val scanner = table.getScanner(scanObj)
+    var resultArray = new Array[Result](length)
+    try {
+      resultArray = scanner.next(length)
+    } catch {
+      case _ => println("Failed to read from the scanner of the HBase table")
+    } finally {
+      scanner.close()
+    }
+
+    resultArray
   }
 
 

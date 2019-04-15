@@ -4,12 +4,21 @@ import java.nio.ByteBuffer
 import java.nio.file.{Files, Path, Paths}
 
 import com.intel.analytics.bigdl.dataset.ByteRecord
-import com.intel.analytics.bigdl.utils.File
+import com.intel.analytics.bigdl.utils.{Engine, EngineType, File}
 import scopt.OptionParser
 
 import scala.collection.mutable.ArrayBuffer
 
 object Utils2 {
+  def engineCoreNumber():Int={
+    Engine.coreNumber()
+  }
+  def engineNodeNumber():Int={
+    Engine.nodeNumber()
+  }
+
+  def engineType():EngineType= Engine.getEngineType()
+
   case class TrainParams(
                           folder: String = "./",
                           checkpoint: Option[String] = None,

@@ -156,12 +156,12 @@ object TrainKfbio {
   }
 
   private def setParallism(model: AbstractModule[_, _, Float], parallism: Int): Unit = {
-    if (model.isInstanceOf[BatchNormalization[Float]]) {
-      model.asInstanceOf[BatchNormalization[Float]].setParallism(parallism)
-    }
-    if(model.isInstanceOf[Container[_, _, Float]]) {
-      model.asInstanceOf[Container[_, _, Float]].
-        modules.foreach(sub => setParallism(sub, parallism))
+    model match {
+      case value: BatchNormalization[Float] =>
+        value.setParallism(parallism)
+      case value: Container[_, _, Float] =>
+        value.modules.foreach(sub => setParallism(sub, parallism))
+      case _ =>
     }
   }
 }

@@ -5,7 +5,6 @@ import java.nio.ByteBuffer
 import java.nio.file.{Files, Path, Paths}
 
 import com.intel.analytics.bigdl.DataSet
-import com.intel.analytics.bigdl.dataset._
 import com.intel.analytics.bigdl.dataset.image.{BGRImage, LabeledBGRImage, LocalImageFiles, LocalLabeledImagePath}
 import com.intel.analytics.bigdl.tensor.Tensor
 import com.intel.analytics.bigdl.transform.vision.image.{DistributedImageFrame, ImageFeature, ImageFrame, LocalImageFrame}
@@ -24,7 +23,7 @@ import scala.util.Random
 /**
   * Common used DataSet builder.
   */
-object DataSet  {
+object DataSet2  {
   val logger = Logger.getLogger(getClass)
 
   /**
@@ -63,7 +62,7 @@ object DataSet  {
   def rdd[T: ClassTag](data: RDD[T]): DistributedDataSet[T] = {
     val nodeNumber = Engine.nodeNumber()
     new CachedDistriDataSet[T](
-      data.coalesce(nodeNumber, true)
+      data.coalesce(nodeNumber, false)
         .mapPartitions(iter => {
           Iterator.single(iter.toArray)
         }).setName("cached dataset")
@@ -303,34 +302,6 @@ object DataSet  {
         .filter(_.endsWith(".seq")).toArray.sortWith(_ < _).map(p => LocalSeqFilePath(Paths.get(p)))
     }
 
-    /**
-      * SuSuSuSu
-      * @param path
-      * @return
-      */
-//    private[bigdl] def rddToImageFrame(inRdd: RDD[String], sc: SparkContext,
-//                                       classNum: Int, partitionNum: Option[Int] = None): ImageFrame = {
-//      val num = partitionNum.getOrElse(Engine.nodeNumber() * Engine.coreNumber())
-//      val rawData = inRdd.map(row => {
-//        //val rawString = row.drop(0).dropRight(1)
-//        val rawString = row
-//        val base64String: String = rawString.split(";")(4)
-//        val rawBytes: Array[Byte] = javax.xml.bind.DatatypeConverter
-//          .parseBase64Binary(base64String.map{case '-' => '+'; case '_' => '/'; case c => c })
-//
-//        import java.io.ByteArrayInputStream
-//        val pixelArr = new ByteArrayInputStream(rawBytes)
-//        val image = ImageIO.read(pixelArr)
-//
-//        val bytes: Array[Byte] = image.getRaster.getDataBuffer.asInstanceOf[DataBufferByte].getData
-//        val label = Tensor[Float](T(rawString.split(";")(3).toFloat + 1))
-//
-//        val imf = ImageFeature(bytes, label)
-//        imf(ImageFeature.originalSize) = (512, 512, 3)
-//        imf
-//      }).filter(_[Tensor[Float]](ImageFeature.label).valueAt(1) <= classNum)
-//      ImageFrame.rdd(rawData)
-//    }
 
     private[bigdl] def rddToImageFrame(inRdd: RDD[String], sc: SparkContext,
                                        classNum: Int, partitionNum: Option[Int] = None, cropWidth: Int = 150, cropHeight: Int = 150): ImageFrame = {

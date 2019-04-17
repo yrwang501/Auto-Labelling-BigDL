@@ -38,6 +38,7 @@ object Utils2 {
                           graphModel: Boolean = false,
                           warmupEpoch: Int = 0,
                           maxLr: Double = 0.0,
+                          validatePortition: Double = 0.02,
                           coreSitePath: String = "/home/yilinma/Documents/IntelliJ_IDEA_Projects/Test/core-site.xml",
                           hbaseSitePath: String = "/home/yilinma/Documents/IntelliJ_IDEA_Projects/Test/hbase-site.xml",
                           hbaseTableName: String = "kfb_512",
@@ -65,6 +66,9 @@ object Utils2 {
     opt[Int]("depth")
       .text("depth of ResNet, 18 | 20 | 34 | 50 | 101 | 152 | 200")
       .action((x, c) => c.copy(depth = x))
+    opt[Double]("testsize")
+      .text("The percentage of test data used in validation of whole test data set size")
+      .action((x, c) => c.copy(validatePortition = x))
     opt[Int]("classes")
       .text("classes of ResNet")
       .action((x, c) => c.copy(classes = x))

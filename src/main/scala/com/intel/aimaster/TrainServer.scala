@@ -35,7 +35,7 @@ object TrainServer extends  StreamApp[IO]{
     val helloWorldService = HttpService[IO] {
       case GET -> Root / "hello" / name =>
         Ok(s"Hello, $name.")
-      case GET -> Root / "train" / startRow / stopRow => {
+      case GET -> Root / "train" / startRow / stopRow / deltaHue / deltaContrast / learningRate => { ////
         if(!modelInit.isCompleted || Train.isTraining){
           Ok(s"""{"accepted":false,"start":$startRow,"len":$stopRow}""")
             .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
@@ -43,8 +43,10 @@ object TrainServer extends  StreamApp[IO]{
         else
         {
           Future{
-            Train.doTrain(batchSize, 2, startRow.toInt, stopRow.toInt,
-              "out.obj", validatePortition = validatePortition)
+            Train.doTrain(batchSize, 5, startRow.toInt, stopRow.toInt,
+              "out.obj", validatePortition = validatePortition,
+              deltaHue = deltaHue.toDouble, deltaContrast = deltaContrast.toDouble,
+              learningRate = learningRate.toDouble)
           }
           Ok(s"""{"accepted":true,"start":$startRow,"len":$stopRow}""")
             .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
@@ -93,6 +95,6 @@ object TrainServer extends  StreamApp[IO]{
       allowedHeaders = Some(Set("Content-Type"))
     )
 
-    BlazeBuilder[IO].bindHttp(13345, "0.0.0.0").mountService(CORS(helloWorldService, methodConfig), "/").serve
+    BlazeBuilder[IO].bindHttp(13346, "0.0.0.0").mountService(CORS(helloWorldService, methodConfig), "/").serve
   }
 }

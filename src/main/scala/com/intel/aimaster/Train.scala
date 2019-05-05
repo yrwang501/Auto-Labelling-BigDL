@@ -28,6 +28,7 @@ import org.apache.spark.broadcast.Broadcast
 import java.io.ByteArrayInputStream
 
 import com.intel.analytics.bigdl.dataset.{DataSet, MiniBatch}
+import org.apache.spark.rdd.RDD
 
 import scala.util.Random
 
@@ -46,8 +47,8 @@ object Train {
   var hbaseconf : Broadcast[(String,String,String)] = _
   var table : Table = _
   var sc: SparkContext = _
-  var trainDataSet:DataSet[MiniBatch[Float]] = _
-  var validateSet:DataSet[MiniBatch[Float]] = _
+  var trainRdd:RDD[ImageFeature] = _
+  var valRdd:RDD[ImageFeature] = _
   var niter = 0
   var accScore = 0.0
   @volatile var isTraining = false
@@ -126,7 +127,7 @@ object Train {
     require(startRow<stopRow)
     // retrieve 3 columns from HBase (label, offset, image base64 string)
     val fetchBatchSize=30
-    val imageSize=224
+
     val _hbaseconf=hbaseconf
     val numSplits = divAndCeil(stopRow-startRow, fetchBatchSize)
     val rawDataset = sc.parallelize( 0 until numSplits, engineNodeNumber())
@@ -165,11 +166,9 @@ object Train {
       (imf, tp._3)
     })
 
-    val trainRdd = rawDataset.filter( data=> data._2!=0).map(tp=>tp._1)
+    trainRdd = rawDataset.filter( data=> data._2!=0).map(tp=>tp._1).cache()
     //take 15% of the validation set.
-    val valRdd = rawDataset.filter(data=> data._2 == 0 ).map(tp=>tp._1)
-    trainDataSet = ImageNetDataSet2.trainD(ImageFrame.rdd(trainRdd), sc, imageSize, batchSize)
-    validateSet = ImageNetDataSet2.valD(ImageFrame.rdd(valRdd), sc, imageSize, batchSize, validatePortition)
+    valRdd = rawDataset.filter(data=> data._2 == 0 ).map(tp=>tp._1).cache()
 
   }
 
@@ -179,7 +178,7 @@ object Train {
               classes:Int=2,depth:Int=50,validatePortition:Double=0.08,
               learningRate:Double=0.1,maxLr:Double=3.2,warmupEpoch:Int=1,
               weightDecay:Double=1e-4,momentum:Double=0.9,dampening:Double=0.0,
-              nesterov:Boolean=true,optnet: Boolean = false):Unit={
+              nesterov:Boolean=true,optnet: Boolean = false, deltaHue:Double = 0.0, deltaContrast:Double = 1.0):Unit={////
     isTraining=true
     needsAbort=false
     val dataSetType = DatasetType.ImageNet
@@ -215,7 +214,9 @@ object Train {
           T("depth" -> param.depth, "dataSet" -> ImageNet))*/
       //       }
     }
-
+    val imageSize=224
+    val trainDataSet = ImageNetDataSet2.trainD(ImageFrame.rdd(trainRdd), sc, imageSize, batchSize, deltaHue, deltaContrast)
+    val validateSet = ImageNetDataSet2.valD(ImageFrame.rdd(valRdd), sc, imageSize, batchSize, validatePortition, deltaHue, deltaContrast)
 
     val optimMethod = if (stateSnapshot.isDefined) {
       val optim = OptimMethod.load[Float](stateSnapshot.get).asInstanceOf[SGD[Float]]
@@ -255,16 +256,78 @@ object Train {
     trainSummary.setSummaryTrigger("LearningRate", Trigger.severalIteration(1))
     trainSummary.setSummaryTrigger("Parameters", Trigger.severalIteration(10))
     val validationSummary = ValidationSummary(logdir, appName)
+
+    var accSoreArray = Array[Double]()
+    var accSoreHistory = Array[Double]()
+    def avg(data: Seq[Double]) : Double={
+      var sum=0.0
+      data.foreach(v => sum += v)
+      sum/data.length
+    }
+
+    def variance(data: Seq[Double]) : Double={
+      var average=avg(data)
+      var sum=0.0
+      data.foreach(v => sum += (v-average)*(v-average))
+      sum/data.length
+    }
+
+    def test(accSoreTemp: Double) : Double={
+      //val accSoreTemp = state[Float]("score")
+      var varianceArray=0.0
+      if(accSoreArray.length<8){
+        accSoreArray = accSoreArray:+accSoreTemp
+        accScore = avg(accSoreArray)
+        //varianceArray = variance(accSoreArray)
+      }
+      else
+      {
+        if(accSoreArray(0) < accSoreTemp){
+          accSoreArray(0) = accSoreTemp
+          accSoreArray = accSoreArray.sorted
+        }
+        accScore=avg(accSoreArray)
+      }
+
+      if(accSoreHistory.length<8){
+        accSoreHistory = accSoreHistory:+accSoreTemp
+        varianceArray = variance(accSoreArray)
+      }
+      else
+      {
+        accSoreHistory(0)=accSoreHistory(1)
+        accSoreHistory(1)=accSoreHistory(2)
+        accSoreHistory(2)=accSoreHistory(3)
+        accSoreHistory(3)=accSoreHistory(4)
+        accSoreHistory(4)=accSoreHistory(5)
+        accSoreHistory(5)=accSoreHistory(6)
+        accSoreHistory(6)=accSoreHistory(7)
+        accSoreHistory(7)=accSoreTemp
+        varianceArray = variance(accSoreArray)
+      }
+      println(s"variance: $varianceArray, accuracy: $accScore")
+      varianceArray
+    }
+
     val myTrigger = new Trigger {
       override def apply(state: utils.Table): Boolean = {
         niter = state[Int]("neval")
-        accScore = state[Float]("score")
-        state[Int]("epoch") > maxEpoch || accScore > 0.85 || needsAbort
+        val accSoreTemp = state[Float]("score")
+        val varianceArray = if(niter % 5 ==0) {
+          test(accSoreTemp)
+        }
+        else{
+          1000.0
+        }
+        //accScore =
+        //state[Int]("epoch") > maxEpoch || accScore > 0.85 || needsAbort
+        state[Int]("epoch") > maxEpoch ||  needsAbort || (niter>15&&varianceArray<0.0001)
+
       }
     }
     val trainedModel = optimizer
       .setOptimMethod(optimMethod)
-      .setValidation(Trigger.severalIteration(15),
+      .setValidation(Trigger.severalIteration(5),
         validateSet, Array(new Top1Accuracy[Float]))
       .setEndWhen(myTrigger)
       .optimize()

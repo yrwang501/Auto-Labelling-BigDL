@@ -167,7 +167,7 @@ object ImageNetDataSet2 extends ResNetDataSet {
     )
   }
 
-  def valD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, portion: Double)
+  def valD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, portion: Double, deltaHue: Double, deltaContrast: Double)
   : DataSet[MiniBatch[Float]] = {
     SeqFileFolder2.imageFrameToImageFeatureDataset(rdd).transform(
       ImageFeature2Batch(
@@ -177,6 +177,10 @@ object ImageNetDataSet2 extends ResNetDataSet {
         transformer = PixelBytesToMat() ->
           RandomResize(256, 256) ->
           RandomCropper(224, 224, true, CropRandom) ->
+
+          Hue(deltaHue, deltaHue) ->
+          Contrast(deltaContrast, deltaContrast) ->
+
           ChannelScaledNormalizer(104, 117, 123, 0.0078125) ->
           MatToTensor[Float](), portion, toRGB = false
       )
@@ -185,7 +189,7 @@ object ImageNetDataSet2 extends ResNetDataSet {
 
   }
 
-  def trainD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int)
+  def trainD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, deltaHue: Double, deltaContrast: Double)
   : DataSet[MiniBatch[Float]] = {
     SeqFileFolder2.imageFrameToImageFeatureDataset(rdd).transform(
       MTImageFeatureToBatch(
@@ -195,6 +199,10 @@ object ImageNetDataSet2 extends ResNetDataSet {
         transformer = PixelBytesToMat() ->
           RandomAlterAspect() ->
           RandomCropper(224, 224, true, CropRandom) ->
+
+          Hue(deltaHue, deltaHue) ->
+          Contrast(deltaContrast, deltaContrast) ->
+
           ChannelScaledNormalizer(104, 117, 123, 0.0078125) ->
           MatToTensor[Float](), toRGB = false
       )

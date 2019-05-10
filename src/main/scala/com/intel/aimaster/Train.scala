@@ -291,7 +291,7 @@ object Train {
 
       if(accSoreHistory.length<8){
         accSoreHistory = accSoreHistory:+accSoreTemp
-        varianceArray = variance(accSoreArray)
+        varianceArray = variance(accSoreHistory)
       }
       else
       {
@@ -303,7 +303,7 @@ object Train {
         accSoreHistory(5)=accSoreHistory(6)
         accSoreHistory(6)=accSoreHistory(7)
         accSoreHistory(7)=accSoreTemp
-        varianceArray = variance(accSoreArray)
+        varianceArray = variance(accSoreHistory)
       }
       println(s"variance: $varianceArray, accuracy: $accScore")
       varianceArray

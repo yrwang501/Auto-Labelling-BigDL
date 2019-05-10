@@ -24,9 +24,10 @@ object TrainServer extends  StreamApp[IO]{
 
   override def stream(args: List[String], requestShutdown: IO[Unit]): Stream[IO, ExitCode] = {
 
-    //0=coresite, 1=hbasesit, 2=tablename, 3=startrow, 4=endrow, 5=batchsize, 6=testsize
+    //0=coresite, 1=hbasesit, 2=tablename, 3=startrow, 4=endrow, 5=batchsize, 6=testsize, 7=maxepoch
     val batchSize = args(5).toInt
     val validatePortition = args(6).toDouble
+    val maxEpoch = args(7).toInt
     var modelInit= Future{
       Train.init(args(0), args(1), args(2))
       Train.loadDataset(args(3).toInt,args(4).toInt,batchSize,validatePortition)
@@ -43,7 +44,7 @@ object TrainServer extends  StreamApp[IO]{
         else
         {
           Future{
-            Train.doTrain(batchSize, 5, startRow.toInt, stopRow.toInt,
+            Train.doTrain(batchSize, maxEpoch, startRow.toInt, stopRow.toInt,
               "out.obj", validatePortition = validatePortition,
               deltaHue = deltaHue.toDouble, deltaContrast = deltaContrast.toDouble,
               learningRate = learningRate.toDouble)
@@ -76,6 +77,11 @@ object TrainServer extends  StreamApp[IO]{
         val acc=Train.accScore
         Ok(s"""{"status":"$status", "progress":$prog, "accuracy":$acc}""")
           .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
+      }
+      case GET -> Root / "stop" =>{
+        Ok(s"""{"status":"ok"}""")
+           .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
+        sys.exit()
       }
       case GET -> Root / "cancel" =>{
         if(Train.isTraining){

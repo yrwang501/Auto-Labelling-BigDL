@@ -36,7 +36,7 @@ object TrainServer extends  StreamApp[IO]{
     val helloWorldService = HttpService[IO] {
       case GET -> Root / "hello" / name =>
         Ok(s"Hello, $name.")
-      case GET -> Root / "train" / startRow / stopRow / deltaHue / deltaContrast / learningRate => { ////
+      case GET -> Root / "train" / startRow / stopRow / deltaHue / deltaContrast / learningRate / deltaRotation=> { ////
         if(!modelInit.isCompleted || Train.isTraining){
           Ok(s"""{"accepted":false,"start":$startRow,"len":$stopRow}""")
             .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
@@ -47,7 +47,7 @@ object TrainServer extends  StreamApp[IO]{
             Train.doTrain(batchSize, maxEpoch, startRow.toInt, stopRow.toInt,
               "out.obj", validatePortition = validatePortition,
               deltaHue = deltaHue.toDouble, deltaContrast = deltaContrast.toDouble,
-              learningRate = learningRate.toDouble)
+              learningRate = learningRate.toDouble, deltaRotation = deltaRotation.toDouble)
           }
           Ok(s"""{"accepted":true,"start":$startRow,"len":$stopRow}""")
             .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))

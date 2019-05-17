@@ -8,9 +8,15 @@ import com.intel.analytics.bigdl.dataset.image.{HFlip => JHFlip}
 import com.intel.analytics.bigdl.dataset.DataSet2.SeqFileFolder2
 import com.intel.analytics.bigdl.transform.vision
 import com.intel.analytics.bigdl.transform.vision.image._
-import com.intel.analytics.bigdl.transform.vision.image.augmentation._
+import com.intel.analytics.bigdl.transform.vision.image.augmentation.{Contrast, _}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import com.intel.analytics.bigdl.transform.vision.image.opencv.OpenCVMat
+import com.intel.analytics.bigdl.transform.vision.image.{FeatureTransformer, ImageFeature}
+import com.intel.analytics.bigdl.utils.RandomGenerator._
+import org.opencv.core.Core
+
+
 
 import scala.util.Random
 
@@ -167,8 +173,92 @@ object ImageNetDataSet2 extends ResNetDataSet {
     )
   }
 
-  def valD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, portion: Double, deltaHue: Double, deltaContrast: Double)
+  /**
+    * Adjust the image contrast
+    * @param deltaLow RandRotation parameter low bound
+    * @param deltaHigh RandRotation parameter high bound
+    */
+  class RandRotation(deltaLow: Double, deltaHigh: Double)//0-1 1-2 2-3 3-4
+    extends FeatureTransformer {
+
+    require(deltaHigh <= 4&& deltaLow>=0, "RandRotation lower and upper must be in limit.")
+    require(deltaHigh >= deltaLow, "RandRotation upper must be >= lower.")
+    require(deltaLow >= 0, "RandRotation lower must be non-negative.")
+
+    override def transformMat(feature: ImageFeature): Unit = {
+      RandRotation.transform(feature.opencvMat(), feature.opencvMat(), RNG.uniform(deltaLow, deltaHigh))
+    }
+  }
+
+  object RandRotation {
+    def apply(deltaLow: Double, deltaHigh: Double): RandRotation = new RandRotation(deltaLow, deltaHigh)
+
+    def transform(input: OpenCVMat, output: OpenCVMat, delta: Double): OpenCVMat = {
+      if (delta >= 0&&delta < 1) {
+        input.copyTo(output)
+      }
+      else if(delta >= 1&&delta < 2){
+        var temp_image=input
+        Core.transpose(input, temp_image)
+        Core.flip(temp_image, output,1)
+      }
+      else if(delta >= 2&&delta < 3){
+        var temp_image=input
+        Core.transpose(input, temp_image)
+        Core.flip(temp_image, output,0)
+      }
+      else{
+        var temp_image=input
+        Core.transpose(input, temp_image)
+        Core.flip(temp_image, output,-1)
+      }
+      output
+    }
+  }
+
+
+  /**
+    * Adjust the image contrast
+    * @param deltaLow contrast parameter low bound
+    * @param deltaHigh contrast parameter high bound
+    */
+  class ContrastLog(deltaLow: Double, deltaHigh: Double)
+    extends FeatureTransformer {
+
+    require(deltaHigh >= deltaLow, "contrast upper must be >= lower.")
+    require(deltaLow >= 0, "contrast lower must be non-negative.")
+    override def transformMat(feature: ImageFeature): Unit = {
+      ContrastLog.transform(feature.opencvMat(), feature.opencvMat(), RNG.uniform(deltaLow, deltaHigh))
+    }
+  }
+
+  object ContrastLog {
+    def apply(deltaLow: Double, deltaHigh: Double): ContrastLog = new ContrastLog(deltaLow, deltaHigh)
+
+    def transform(input: OpenCVMat, output: OpenCVMat, delta: Double): OpenCVMat = {
+      var temp_image=input
+      Core.normalize(input, temp_image)
+      temp_image.convertTo(temp_image, -1, delta, 1)
+      Core.log(temp_image, temp_image)
+      temp_image.convertTo(output, -1, 255/Math.log(1+delta), 0)
+      /*if (Math.abs(delta - 1) > 1e-3) {
+        //Nonlinear logarithmic function
+        val deltaLog=Math.log(delta)
+        input.convertTo(output, -1, deltaLog, 0)
+      } else {
+        if (input != output) input.copyTo(output)
+      }*/
+      output
+    }
+  }
+
+
+  def valD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, portion: Double, deltaHue: Double, deltaContrast: Double, deltaRotation: Double)
   : DataSet[MiniBatch[Float]] = {
+
+    //Nonlinear logarithmic function
+    //val deltaContrastLog=Math.log(deltaContrast)
+
     SeqFileFolder2.imageFrameToImageFeatureDataset(rdd).transform(
       ImageFeature2Batch(
         width = imageSize,
@@ -178,9 +268,12 @@ object ImageNetDataSet2 extends ResNetDataSet {
           RandomResize(256, 256) ->
           RandomCropper(224, 224, true, CropRandom) ->
 
-          Hue(deltaHue, deltaHue) ->
-          Contrast(deltaContrast, deltaContrast) ->
+          //RandRotation(0.0, deltaRotation) ->
 
+          Hue(deltaHue, deltaHue) ->
+          ContrastLog(deltaContrast, deltaContrast) ->
+
+          //1/255
           ChannelScaledNormalizer(104, 117, 123, 0.0078125) ->
           MatToTensor[Float](), portion, toRGB = false
       )
@@ -189,8 +282,12 @@ object ImageNetDataSet2 extends ResNetDataSet {
 
   }
 
-  def trainD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, deltaHue: Double, deltaContrast: Double)
+  def trainD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, deltaHue: Double, deltaContrast: Double, deltaRotation: Double)
   : DataSet[MiniBatch[Float]] = {
+
+    //Nonlinear logarithmic function
+    //val deltaContrastLog=Math.log(deltaContrast)
+
     SeqFileFolder2.imageFrameToImageFeatureDataset(rdd).transform(
       MTImageFeatureToBatch(
         width = imageSize,
@@ -200,8 +297,10 @@ object ImageNetDataSet2 extends ResNetDataSet {
           RandomAlterAspect() ->
           RandomCropper(224, 224, true, CropRandom) ->
 
+          RandRotation(0.0, deltaRotation) ->
+
           Hue(deltaHue, deltaHue) ->
-          Contrast(deltaContrast, deltaContrast) ->
+          ContrastLog(deltaContrast, deltaContrast) ->
 
           ChannelScaledNormalizer(104, 117, 123, 0.0078125) ->
           MatToTensor[Float](), toRGB = false

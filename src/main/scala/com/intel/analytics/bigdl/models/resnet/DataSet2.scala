@@ -14,10 +14,8 @@ import org.apache.spark.rdd.RDD
 import com.intel.analytics.bigdl.transform.vision.image.opencv.OpenCVMat
 import com.intel.analytics.bigdl.transform.vision.image.{FeatureTransformer, ImageFeature}
 import com.intel.analytics.bigdl.utils.RandomGenerator._
-import org.opencv.core.Core
-
-
-
+import java.util
+import org.opencv.core.{Core, Mat}
 import scala.util.Random
 
 /**
@@ -231,23 +229,36 @@ object ImageNetDataSet2 extends ResNetDataSet {
       ContrastLog.transform(feature.opencvMat(), feature.opencvMat(), RNG.uniform(deltaLow, deltaHigh))
     }
   }
-
+  import org.opencv.imgproc.Imgproc
   object ContrastLog {
     def apply(deltaLow: Double, deltaHigh: Double): ContrastLog = new ContrastLog(deltaLow, deltaHigh)
 
     def transform(input: OpenCVMat, output: OpenCVMat, delta: Double): OpenCVMat = {
-      var temp_image=input
-      Core.normalize(input, temp_image)
-      temp_image.convertTo(temp_image, -1, delta, 1)
-      Core.log(temp_image, temp_image)
-      temp_image.convertTo(output, -1, 255/Math.log(1+delta), 0)
-      /*if (Math.abs(delta - 1) > 1e-3) {
-        //Nonlinear logarithmic function
-        val deltaLog=Math.log(delta)
-        input.convertTo(output, -1, deltaLog, 0)
+      if (Math.abs(delta - 1) > 1e-3) {
+
+        // Convert to HSV colorspae
+        Imgproc.cvtColor(input, output, Imgproc.COLOR_BGR2HSV)
+
+        // Split the image to 3 channels.
+        val channels = new util.ArrayList[Mat]()
+        Core.split(output, channels)
+
+        // Adjust the contrast.
+        val temp_image=channels.get(2)
+        Core.normalize(channels.get(2), channels.get(2))
+        temp_image.convertTo(temp_image, -1, delta, 1)
+        Core.log(temp_image, temp_image)
+        temp_image.convertTo(temp_image, -1, 255/Math.log(1+delta), 0)
+
+
+        Core.merge(channels, output)
+        (0 until channels.size()).foreach(channels.get(_).release())
+        // Back to BGR colorspace.
+        Imgproc.cvtColor(output, output, Imgproc.COLOR_HSV2BGR)
+
       } else {
         if (input != output) input.copyTo(output)
-      }*/
+      }
       output
     }
   }

@@ -171,24 +171,12 @@ object Train {
     valRdd = rawDataset.filter(data=> data._2 == 0 ).map(tp=>tp._1).cache()
   }
 
-  /*
-  def sss()={
-    val r = trainRdd.map( f=> {
-      val raw = f(ImageFeature.bytes).asInstanceOf[Array[Byte]]
-      ((123,111,111),1)
-    }).reduce((x,y)=>{
-      ((123,111,111),1)
-    })
-    r._1
-  }*/
-
-
   def doTrain(batchSize:Int,maxEpoch:Int,startRow:Int,stopRow:Int,
               modelSavingPath:String,checkpoint:Option[String]=None,stateSnapshot:Option[String]=None,modelSnapshot:Option[String]=None,
               classes:Int=2,depth:Int=50,validatePortition:Double=0.08,
               learningRate:Double=0.1,maxLr:Double=3.2,warmupEpoch:Int=1,
               weightDecay:Double=1e-4,momentum:Double=0.9,dampening:Double=0.0,
-              nesterov:Boolean=true,optnet: Boolean = false, deltaHue:Double = 0.0, deltaContrast:Double = 1.0, deltaRotation:Double = 0.0):Unit={////
+              nesterov:Boolean=true,optnet: Boolean = false, deltaHue:Double = 0.0, deltaContrast:Double = 1.0, deltaRotation:Double = 0.0):Unit={
     isTraining=true
     needsAbort=false
     val dataSetType = DatasetType.ImageNet

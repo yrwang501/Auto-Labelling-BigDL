@@ -250,7 +250,6 @@ object ImageNetDataSet2 extends ResNetDataSet {
         Core.log(temp_image, temp_image)
         temp_image.convertTo(temp_image, -1, 255/Math.log(1+delta), 0)
 
-
         Core.merge(channels, output)
         (0 until channels.size()).foreach(channels.get(_).release())
         // Back to BGR colorspace.

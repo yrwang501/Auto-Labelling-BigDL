@@ -57,13 +57,17 @@ object Train {
   import Utils2._
 
   def imageNetDecay(epoch: Int): Double = {
-    if (epoch >= 80) {
+    if (epoch >= 10) {
       3
-    } else if (epoch >= 60) {
+    } else if (epoch >= 8) {
       2
-    } else if (epoch >= 30) {
+    } else if (epoch >= 5) {
+      2
+    } else if (epoch >= 3) {
       1
-    } else {
+    } else if (epoch >= 1) {
+      0.8
+    }else {
       0.0
     }
   }
@@ -171,12 +175,14 @@ object Train {
     valRdd = rawDataset.filter(data=> data._2 == 0 ).map(tp=>tp._1).cache()
   }
 
-  def doTrain(batchSize:Int,maxEpoch:Int,startRow:Int,stopRow:Int,
-              modelSavingPath:String,checkpoint:Option[String]=None,stateSnapshot:Option[String]=None,modelSnapshot:Option[String]=None,
-              classes:Int=2,depth:Int=50,validatePortition:Double=0.08,
-              learningRate:Double=0.1,maxLr:Double=3.2,warmupEpoch:Int=1,
-              weightDecay:Double=1e-4,momentum:Double=0.9,dampening:Double=0.0,
-              nesterov:Boolean=true,optnet: Boolean = false, deltaHue:Double = 0.0, deltaContrast:Double = 1.0, deltaRotationTimes:Int=3):Unit={
+  def doTrain(batchSize: Int, maxEpoch: Int, startRow: Int, stopRow: Int,
+    modelSavingPath: Option[String], checkpoint: Option[String] = None, stateSnapshot: Option[String] =
+  None, modelSnapshot: Option[String] = None,
+    classes: Int = 2, depth: Int = 50, validatePortition: Double = 0.08,
+    learningRate: Double = 0.1, maxLr: Double = 0.5, warmupEpoch: Int = 1,
+    weightDecay: Double = 1e-4, momentum: Double = 0.9, dampening: Double = 0.0,
+    nesterov: Boolean = true, optnet: Boolean = false, deltaHue: Double = 0.0,
+    deltaContrast: Double = 1.0, deltaRotationTimes:Int = 3): Unit = {
     isTraining=true
     needsAbort=false
     val dataSetType = DatasetType.ImageNet
@@ -226,14 +232,13 @@ object Train {
       optim
     } else {
       val baseLr = learningRate
-      val iterationsPerEpoch = math.ceil(1281167 / batchSize).toInt
-      val warmUpIteration = iterationsPerEpoch * warmupEpoch
+      val warmUpIteration = 200 * warmupEpoch
       val delta = (maxLr - baseLr) / warmUpIteration
 
       logger.info(s"warmUpIteraion: $warmUpIteration, startLr: ${learningRate}, " +
         s"maxLr: $maxLr, " +
         s"delta: $delta, nesterov: ${nesterov}")
-      new SGD[Float](learningRate = learningRate, learningRateDecay = 0.0,
+      new SGD[Float](learningRate = learningRate, learningRateDecay = 0.05,
         weightDecay = weightDecay, momentum = momentum, dampening = dampening,
         nesterov = nesterov,
         learningRateSchedule = SGD.EpochDecayWithWarmUp(warmUpIteration, delta, imageNetDecay))
@@ -284,7 +289,11 @@ object Train {
           accSoreArray(0) = accSoreTemp
           accSoreArray = accSoreArray.sorted
         }
-        accScore=avg(accSoreArray)
+        if (modelSavingPath.isDefined) {
+          accScore = accSoreTemp
+        } else {
+          accScore = avg(accSoreArray)
+        }
       }
 
       if(accSoreHistory.length<8){
@@ -317,10 +326,12 @@ object Train {
         else{
           1000.0
         }
-        //accScore =
-        //state[Int]("epoch") > maxEpoch || accScore > 0.85 || needsAbort
-        state[Int]("epoch") > maxEpoch ||  needsAbort || (niter>15&&varianceArray<0.0001)
-
+        val nepoch = state[Int]("epoch")
+        if (modelSavingPath.isDefined) {
+          nepoch > maxEpoch || needsAbort
+        } else {
+          nepoch > maxEpoch || needsAbort || (nepoch > 3 && varianceArray < 0.0001)
+        }
       }
     }
     val trainedModel = optimizer
@@ -330,8 +341,10 @@ object Train {
       .setEndWhen(myTrigger)
       .optimize()
 
-    //trainedModel.saveModule(modelSavingPath, overWrite = true)
-    //trainedModel.save(param.modelSavingPath, true)
+    modelSavingPath.foreach(path => {
+      trainedModel.saveModule(path, overWrite = true)
+      //trainedModel.save(param.modelSavingPath, true)
+    })
     isTraining=false
 
   }
@@ -340,7 +353,7 @@ object Train {
 
       init(param.coreSitePath, param.hbaseSitePath, param.hbaseTableName)
       loadDataset(param.rowKeyStart.toInt,param.rowKeyEnd.toInt,param.batchSize,param.validatePortition)
-      doTrain(param.batchSize,param.nepochs,param.rowKeyStart.toInt,param.rowKeyEnd.toInt,param.modelSavingPath,
+      doTrain(param.batchSize,param.nepochs,param.rowKeyStart.toInt,param.rowKeyEnd.toInt,Some(param.modelSavingPath),
         param.checkpoint,param.stateSnapshot,param.modelSnapshot,param.classes,param.depth,param.validatePortition,
         param.learningRate,param.maxLr,param.warmupEpoch,param.weightDecay,param.momentum,param.dampening,param.nesterov,param.optnet
       )

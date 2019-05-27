@@ -36,6 +36,36 @@ object TrainServer extends  StreamApp[IO]{
     val helloWorldService = HttpService[IO] {
       case GET -> Root / "hello" / name =>
         Ok(s"Hello, $name.")
+      case req @ GET -> Root / "getmodel" =>
+
+        val hue = req.params.get("hue")
+        val contrast = req.params.get("contrast")
+        val lr = req.params.get("lr")
+        val rotations = req.params.get("rotations")
+        val modelpath = req.params.get("modelpath")
+        val epochs = req.params.get("epochs")
+        if (hue.isEmpty || contrast.isEmpty || lr.isEmpty || rotations.isEmpty
+          || modelpath.isEmpty || epochs.isEmpty
+        ) {
+          BadRequest(s"Invalid data: " + req.params)
+        } else {
+          if(!modelInit.isCompleted || Train.isTraining){
+            Ok(s"""{"accepted":false,"hue":${hue.get.toDouble},"contrast":${contrast.get.toDouble}}""")
+              .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
+          }
+          else {
+            println(s"epochs=${epochs.get.toInt} hue=${hue.get.toDouble}"
+              + s" contrast=${contrast.get.toDouble}, learningRate = ${lr.get.toDouble}, rotation = ${rotations.get.toDouble}")
+            Future {
+              Train.doTrain(batchSize, epochs.get.toInt, 1, 1,
+                modelpath, validatePortition = validatePortition,
+                deltaHue = hue.get.toDouble, deltaContrast = contrast.get.toDouble,
+                learningRate = lr.get.toDouble, deltaRotation = rotations.get.toDouble)
+            }
+            Ok(s"""{"accepted":true,"hue":${hue.get.toDouble},"contrast":${contrast.get.toDouble}}""")
+              .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
+          }
+        }
       case GET -> Root / "train" / startRow / stopRow / deltaHue / deltaContrast / learningRate / deltaRotationTimes=> {
         if(!modelInit.isCompleted || Train.isTraining){
           Ok(s"""{"accepted":false,"start":$startRow,"len":$stopRow}""")
@@ -45,7 +75,7 @@ object TrainServer extends  StreamApp[IO]{
         {
           Future{
             Train.doTrain(batchSize, maxEpoch, startRow.toInt, stopRow.toInt,
-              "out.obj", validatePortition = validatePortition,
+              None, validatePortition = validatePortition,
               deltaHue = deltaHue.toDouble, deltaContrast = deltaContrast.toDouble,
               learningRate = learningRate.toDouble, deltaRotationTimes = deltaRotationTimes.toInt)
           }

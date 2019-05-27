@@ -364,7 +364,7 @@ object ImageNetDataSet2 extends ResNetDataSet {
         height = imageSize,
         batchSize = batchSize,
         transformer = PixelBytesToMat() ->
-          RandAngleRotation(3) ->
+          RandAngleRotation(deltaRotationTimes) ->
 
           RandomAlterAspect() ->
           RandomCropper(224, 224, true, CropRandom) ->

@@ -57,13 +57,17 @@ object Train {
   import Utils2._
 
   def imageNetDecay(epoch: Int): Double = {
-    if (epoch >= 80) {
+    if (epoch >= 10) {
       3
-    } else if (epoch >= 60) {
+    } else if (epoch >= 8) {
       2
-    } else if (epoch >= 30) {
+    } else if (epoch >= 5) {
+      2
+    } else if (epoch >= 3) {
       1
-    } else {
+    } else if (epoch >= 1) {
+      0.8
+    }else {
       0.0
     }
   }
@@ -322,10 +326,11 @@ object Train {
         else{
           1000.0
         }
+        val nepoch = state[Int]("epoch")
         if (modelSavingPath.isDefined) {
-          state[Int]("epoch") > maxEpoch || needsAbort
+          nepoch > maxEpoch || needsAbort
         } else {
-          state[Int]("epoch") > maxEpoch || needsAbort || (niter > 15 && varianceArray < 0.0001)
+          nepoch > maxEpoch || needsAbort || (nepoch > 3 && varianceArray < 0.0001)
         }
       }
     }

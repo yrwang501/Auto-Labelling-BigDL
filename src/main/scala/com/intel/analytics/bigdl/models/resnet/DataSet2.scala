@@ -15,7 +15,7 @@ import com.intel.analytics.bigdl.transform.vision.image.opencv.OpenCVMat
 import com.intel.analytics.bigdl.transform.vision.image.{FeatureTransformer, ImageFeature}
 import com.intel.analytics.bigdl.utils.RandomGenerator._
 import java.util
-import org.opencv.core.{Core, Mat}
+import org.opencv.core.{Core, CvType, Mat}
 import scala.util.Random
 
 /**
@@ -235,25 +235,28 @@ object ImageNetDataSet2 extends ResNetDataSet {
 
     def transform(input: OpenCVMat, output: OpenCVMat, delta: Double): OpenCVMat = {
       if (Math.abs(delta - 1) > 1e-3) {
+        input.convertTo(output,CvType.CV_32F)
+        output.convertTo(output, -1, delta/255.0, 1)
+        Core.log(output, output)
+        output.convertTo(output, -1, Math.log(1+delta), 0)
+        Core.normalize(output,output,0,255, Core.NORM_MINMAX)
+        output.convertTo(output,CvType.CV_8UC3)
+      } else {
+        if (input != output) input.copyTo(output)
+      }
+      output
+    }
+  }
+  object ContrastGamma {
+    def apply(deltaLow: Double, deltaHigh: Double): ContrastLog = new ContrastLog(deltaLow, deltaHigh)
 
-        // Convert to HSV colorspae
-        Imgproc.cvtColor(input, output, Imgproc.COLOR_BGR2HSV)
-
-        // Split the image to 3 channels.
-        val channels = new util.ArrayList[Mat]()
-        Core.split(output, channels)
-
-        // Adjust the contrast.
-        val temp_image=channels.get(2)
-        Core.normalize(channels.get(2), channels.get(2))
-        temp_image.convertTo(temp_image, -1, delta, 1)
-        Core.log(temp_image, temp_image)
-        temp_image.convertTo(temp_image, -1, 255/Math.log(1+delta), 0)
-
-        Core.merge(channels, output)
-        (0 until channels.size()).foreach(channels.get(_).release())
-        // Back to BGR colorspace.
-        Imgproc.cvtColor(output, output, Imgproc.COLOR_HSV2BGR)
+    def transform(input: OpenCVMat, output: OpenCVMat, delta: Double): OpenCVMat = {
+      if (Math.abs(delta - 1) > 1e-3) {
+        input.convertTo(output,CvType.CV_32F)
+        output.convertTo(output, -1, 1.0/255, 0)
+        Core.pow(output, delta, output)
+        output.convertTo(output, -1, 255.0, 0)
+        output.convertTo(output,CvType.CV_8UC3)
 
       } else {
         if (input != output) input.copyTo(output)
@@ -261,7 +264,6 @@ object ImageNetDataSet2 extends ResNetDataSet {
       output
     }
   }
-
 
   def valD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, portion: Double, deltaHue: Double, deltaContrast: Double, deltaRotation: Double)
   : DataSet[MiniBatch[Float]] = {
@@ -281,7 +283,7 @@ object ImageNetDataSet2 extends ResNetDataSet {
           //RandRotation(0.0, deltaRotation) ->
 
           Hue(deltaHue, deltaHue) ->
-          ContrastLog(deltaContrast, deltaContrast) ->
+          ContrastGamma(deltaContrast, deltaContrast) ->
 
           //1/255
           ChannelScaledNormalizer(104, 117, 123, 0.0078125) ->
@@ -310,7 +312,7 @@ object ImageNetDataSet2 extends ResNetDataSet {
           RandRotation(0.0, deltaRotation) ->
 
           Hue(deltaHue, deltaHue) ->
-          ContrastLog(deltaContrast, deltaContrast) ->
+          ContrastGamma(deltaContrast, deltaContrast) ->
 
           ChannelScaledNormalizer(104, 117, 123, 0.0078125) ->
           MatToTensor[Float](), toRGB = false

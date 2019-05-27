@@ -15,7 +15,10 @@ import com.intel.analytics.bigdl.transform.vision.image.opencv.OpenCVMat
 import com.intel.analytics.bigdl.transform.vision.image.{FeatureTransformer, ImageFeature}
 import com.intel.analytics.bigdl.utils.RandomGenerator._
 import java.util
-import org.opencv.core.{Core, CvType, Mat}
+
+import org.opencv.core.{Core, CvType, Mat, Point, Size, Rect}
+import org.opencv.imgproc.Imgproc
+
 import scala.util.Random
 
 /**
@@ -172,7 +175,7 @@ object ImageNetDataSet2 extends ResNetDataSet {
   }
 
   /**
-    * Adjust the image contrast
+    * Adjust the image RandRotation
     * @param deltaLow RandRotation parameter low bound
     * @param deltaHigh RandRotation parameter high bound
     */
@@ -214,9 +217,63 @@ object ImageNetDataSet2 extends ResNetDataSet {
     }
   }
 
+  /**
+    * Adjust the image RandRotation
+    * @param rotationTimes Rotation times ineed
+    */
+  class RandAngleRotation(rotationTimes: Int)//0-10
+    extends FeatureTransformer {
+
+/*    require(deltaHigh <= 4&& deltaLow>=0, "RandRotation lower and upper must be in limit.")
+    require(deltaHigh >= deltaLow, "RandRotation upper must be >= lower.")
+    require(deltaLow >= 0, "RandRotation lower must be non-negative.")*/
+
+    override def transformMat(feature: ImageFeature): Unit = {
+      RandAngleRotation.transform(feature.opencvMat(), feature.opencvMat(), rotationTimes)
+    }
+  }
+
+  object RandAngleRotation {
+    def apply(rotationTimes: Int): RandAngleRotation = new RandAngleRotation(rotationTimes)
+
+    def transform(input: OpenCVMat, output: OpenCVMat, times: Double): OpenCVMat = {
+      val angle :Int=RNG.uniform(0, times).toInt*(360/times).toInt //RNG.uniform(0, times)
+
+      //val radian :Float= (angle.toFloat /180.0*math.Pi).toFloat
+
+      /*
+      //fill image
+      val maxBorder :Int=(math.max(input.cols, output.rows)* 1.414 ).toInt //sqrt(2)*max
+      val dx :Int= (maxBorder - input.cols)/2
+      val dy :Int= (maxBorder - input.rows)/2
+      Core.copyMakeBorder(input, output, dy, dy, dx, dx, Core.BORDER_CONSTANT)*/
+
+      //rotation
+      val center=new Point( (output.cols/2).toDouble , (output.rows/2).toDouble)
+      val affine_matrix = Imgproc.getRotationMatrix2D( center, angle, 1.0 )
+      Imgproc.warpAffine(input, output, affine_matrix, output.size())
+
+      /*
+      //Calculates the largest rectangle of the image after the image is rotated
+      val sinVal :Float= math.abs(math.sin(radian)).toFloat
+      val cosVal :Float= math.abs(math.cos(radian)).toFloat
+      val targetSize =new Size((input.cols * cosVal +input.rows * sinVal).toDouble,(input.cols * sinVal + input.rows * cosVal).toDouble )
+
+      //Cut off the extra border
+      val x :Int= (output.cols - targetSize.width).toInt / 2
+      val y :Int= (output.rows - targetSize.height).toInt / 2
+      val rect=new Rect(x, y, targetSize.width.toInt, targetSize.height.toInt)
+      val output_mat = new Mat(output,rect)
+
+      val output_ = new OpenCVMat(output_mat)
+      output_.copyTo(output)*/
+      output
+    }
+  }
+
 
   /**
-    * Adjust the image contrast
+    * Adjust the image contrast using Log function
     * @param deltaLow contrast parameter low bound
     * @param deltaHigh contrast parameter high bound
     */
@@ -265,7 +322,7 @@ object ImageNetDataSet2 extends ResNetDataSet {
     }
   }
 
-  def valD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, portion: Double, deltaHue: Double, deltaContrast: Double, deltaRotation: Double)
+  def valD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, portion: Double, deltaHue: Double, deltaContrast: Double)
   : DataSet[MiniBatch[Float]] = {
 
     //Nonlinear logarithmic function
@@ -294,7 +351,7 @@ object ImageNetDataSet2 extends ResNetDataSet {
 
   }
 
-  def trainD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, deltaHue: Double, deltaContrast: Double, deltaRotation: Double)
+  def trainD(rdd: ImageFrame, sc: SparkContext, imageSize: Int, batchSize: Int, deltaHue: Double, deltaContrast: Double, deltaRotationTimes: Int)
   : DataSet[MiniBatch[Float]] = {
 
     //Nonlinear logarithmic function
@@ -306,13 +363,17 @@ object ImageNetDataSet2 extends ResNetDataSet {
         height = imageSize,
         batchSize = batchSize,
         transformer = PixelBytesToMat() ->
+          RandAngleRotation(deltaRotationTimes) ->
+
           RandomAlterAspect() ->
           RandomCropper(224, 224, true, CropRandom) ->
 
-          RandRotation(0.0, deltaRotation) ->
+          //RandRotation(0.0, deltaRotation) ->
 
           Hue(deltaHue, deltaHue) ->
           ContrastGamma(deltaContrast, deltaContrast) ->
+
+          //Contrast
 
           ChannelScaledNormalizer(104, 117, 123, 0.0078125) ->
           MatToTensor[Float](), toRGB = false

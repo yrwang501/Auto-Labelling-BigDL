@@ -66,7 +66,7 @@ object TrainServer extends  StreamApp[IO]{
               .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
           }
         }
-      case GET -> Root / "train" / startRow / stopRow / deltaHue / deltaContrast / learningRate / deltaRotation=> {
+      case GET -> Root / "train" / startRow / stopRow / deltaHue / deltaContrast / learningRate / deltaRotationTimes=> {
         if(!modelInit.isCompleted || Train.isTraining){
           Ok(s"""{"accepted":false,"start":$startRow,"len":$stopRow}""")
             .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))
@@ -77,7 +77,7 @@ object TrainServer extends  StreamApp[IO]{
             Train.doTrain(batchSize, maxEpoch, startRow.toInt, stopRow.toInt,
               None, validatePortition = validatePortition,
               deltaHue = deltaHue.toDouble, deltaContrast = deltaContrast.toDouble,
-              learningRate = learningRate.toDouble, deltaRotation = deltaRotation.toDouble)
+              learningRate = learningRate.toDouble, deltaRotationTimes = deltaRotationTimes.toInt)
           }
           Ok(s"""{"accepted":true,"start":$startRow,"len":$stopRow}""")
             .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))

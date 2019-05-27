@@ -176,7 +176,7 @@ object Train {
               classes:Int=2,depth:Int=50,validatePortition:Double=0.08,
               learningRate:Double=0.1,maxLr:Double=3.2,warmupEpoch:Int=1,
               weightDecay:Double=1e-4,momentum:Double=0.9,dampening:Double=0.0,
-              nesterov:Boolean=true,optnet: Boolean = false, deltaHue:Double = 0.0, deltaContrast:Double = 1.0, deltaRotation:Double = 0.0):Unit={
+              nesterov:Boolean=true,optnet: Boolean = false, deltaHue:Double = 0.0, deltaContrast:Double = 1.0, deltaRotationTimes:Int=3):Unit={
     isTraining=true
     needsAbort=false
     val dataSetType = DatasetType.ImageNet
@@ -213,8 +213,8 @@ object Train {
       //       }
     }
     val imageSize=224
-    val trainDataSet = ImageNetDataSet2.trainD(ImageFrame.rdd(trainRdd), sc, imageSize, batchSize, deltaHue, deltaContrast, deltaRotation)
-    val validateSet = ImageNetDataSet2.valD(ImageFrame.rdd(valRdd), sc, imageSize, batchSize, validatePortition, deltaHue, deltaContrast, deltaRotation)
+    val trainDataSet = ImageNetDataSet2.trainD(ImageFrame.rdd(trainRdd), sc, imageSize, batchSize, deltaHue, deltaContrast, deltaRotationTimes)
+    val validateSet = ImageNetDataSet2.valD(ImageFrame.rdd(valRdd), sc, imageSize, batchSize, validatePortition, deltaHue, deltaContrast)
 
     val optimMethod = if (stateSnapshot.isDefined) {
       val optim = OptimMethod.load[Float](stateSnapshot.get).asInstanceOf[SGD[Float]]

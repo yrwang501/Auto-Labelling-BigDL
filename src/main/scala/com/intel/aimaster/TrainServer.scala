@@ -60,7 +60,7 @@ object TrainServer extends  StreamApp[IO]{
               Train.doTrain(batchSize, epochs.get.toInt, 1, 1,
                 modelpath, validatePortition = validatePortition,
                 deltaHue = hue.get.toDouble, deltaContrast = contrast.get.toDouble,
-                learningRate = lr.get.toDouble, deltaRotation = rotations.get.toDouble)
+                learningRate = lr.get.toDouble, deltaRotationTimes = rotations.get.toInt)
             }
             Ok(s"""{"accepted":true,"hue":${hue.get.toDouble},"contrast":${contrast.get.toDouble}}""")
               .map(_.withContentType(`Content-Type`(MediaType.`application/json`)))

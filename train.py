@@ -102,7 +102,7 @@ def train(**kwargs):
 pbounds = {
     #'contrast': (0.1, 2.0),
     #'brightness': (-100, 100),
-    'contrast': (0.0001, 200),
+    'contrast': (0.04, 25),
     'hue': (0, 179), 
     'lr': (0.05, 1.5),
     'rotations': (-0.49, 4.49)
@@ -113,7 +113,7 @@ def get_optimizer():
     optimizer = BayesianOptimization(
         f=train,
         pbounds=pbounds,
-        random_state=1,
+        random_state=3,
         verbose=2
     )
 
@@ -123,7 +123,7 @@ def get_optimizer():
 
     else:
         optimizer.probe(
-            params={"contrast": 0.0001, "hue": 0, "lr": 0.12, "rotations": 0},
+            params={"contrast": 1, "hue": 0, "lr": 0.12, "rotations": 0},
             lazy=True,
         )
     logger = BasicObserver("./logs.json")
@@ -140,7 +140,7 @@ if __name__ == "__main__":
         if sys.argv[1] == '-t' or sys.argv[1] == '--train':
             get_optimizer().maximize(
                     init_points=3,
-                    n_iter=1000,
+                    n_iter=100,
             )
         elif sys.argv[1] == '-m' or sys.argv[1] == '--full-model':
             if len(sys.argv) != 3:

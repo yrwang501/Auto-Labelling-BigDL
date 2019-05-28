@@ -166,7 +166,7 @@ object Train {
 
       imf(ImageFeature.bytes) = rawdata
       imf(ImageFeature.label) = label
-      imf(ImageFeature.originalSize) = (image.getWidth, image.getHeight, 3)
+      imf(ImageFeature.originalSize) = (image.getHeight, image.getWidth, 3)
       (imf, tp._3)
     })
 

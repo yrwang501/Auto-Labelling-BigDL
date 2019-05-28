@@ -286,7 +286,7 @@ object ImageNetDataSet2 extends ResNetDataSet {
       ContrastLog.transform(feature.opencvMat(), feature.opencvMat(), RNG.uniform(deltaLow, deltaHigh))
     }
   }
-  import org.opencv.imgproc.Imgproc
+
   object ContrastLog {
     def apply(deltaLow: Double, deltaHigh: Double): ContrastLog = new ContrastLog(deltaLow, deltaHigh)
 
@@ -304,8 +304,24 @@ object ImageNetDataSet2 extends ResNetDataSet {
       output
     }
   }
+
+  /**
+   * Adjust the image contrast using gamma function
+   * @param deltaLow contrast parameter low bound
+   * @param deltaHigh contrast parameter high bound
+   */
+  class ContrastGamma(deltaLow: Double, deltaHigh: Double)
+    extends FeatureTransformer {
+
+    require(deltaHigh >= deltaLow, "contrast upper must be >= lower.")
+    require(deltaLow >= 0, "contrast lower must be non-negative.")
+    override def transformMat(feature: ImageFeature): Unit = {
+      ContrastGamma.transform(feature.opencvMat(), feature.opencvMat(), RNG.uniform(deltaLow, deltaHigh))
+    }
+  }
+
   object ContrastGamma {
-    def apply(deltaLow: Double, deltaHigh: Double): ContrastLog = new ContrastLog(deltaLow, deltaHigh)
+    def apply(deltaLow: Double, deltaHigh: Double): ContrastGamma = new ContrastGamma(deltaLow, deltaHigh)
 
     def transform(input: OpenCVMat, output: OpenCVMat, delta: Double): OpenCVMat = {
       if (Math.abs(delta - 1) > 1e-3) {

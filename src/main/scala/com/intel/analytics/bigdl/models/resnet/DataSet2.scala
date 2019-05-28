@@ -249,9 +249,31 @@ object ImageNetDataSet2 extends ResNetDataSet {
       Core.copyMakeBorder(input, output, dy, dy, dx, dx, Core.BORDER_CONSTANT)*/
 
       //rotation
-      val center=new Point( (output.cols/2).toDouble , (output.rows/2).toDouble)
-      val affine_matrix = Imgproc.getRotationMatrix2D( center, angle, 1.0 )
-      Imgproc.warpAffine(input, output, affine_matrix, output.size())
+      if (angle==0) {
+        input.copyTo(output)
+      }
+      else if(angle==90){
+        var temp_image=input
+        Core.transpose(input, temp_image)
+        Core.flip(temp_image, output,1)
+      }
+      else if(angle==180){
+        var temp_image=input
+        Core.transpose(input, temp_image)
+        Core.flip(temp_image, output,0)
+      }
+      else if(angle==270){
+        var temp_image=input
+        Core.transpose(input, temp_image)
+        Core.flip(temp_image, output,-1)
+      }
+      else{
+
+        val center=new Point( (output.cols/2).toDouble , (output.rows/2).toDouble)
+        val affine_matrix = Imgproc.getRotationMatrix2D( center, angle, 1.0 )
+        Imgproc.warpAffine(input, output, affine_matrix, output.size())
+      }
+
 
       /*
       //Calculates the largest rectangle of the image after the image is rotated

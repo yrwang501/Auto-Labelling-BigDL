@@ -278,10 +278,13 @@ object Train {
     def test(accSoreTemp: Double) : Double={
       //val accSoreTemp = state[Float]("score")
       var varianceArray=0.0
-      if(accSoreArray.length<8){
+      if(accSoreArray.length<7){
         accSoreArray = accSoreArray:+accSoreTemp
         accScore = avg(accSoreArray)
         //varianceArray = variance(accSoreArray)
+        if(accSoreArray.length==7){
+          accSoreArray = accSoreArray.sorted
+        }
       }
       else
       {
@@ -296,7 +299,7 @@ object Train {
         }
       }
 
-      if(accSoreHistory.length<8){
+      if(accSoreHistory.length<7){
         accSoreHistory = accSoreHistory:+accSoreTemp
         varianceArray = variance(accSoreHistory)
       }
@@ -308,8 +311,7 @@ object Train {
         accSoreHistory(3)=accSoreHistory(4)
         accSoreHistory(4)=accSoreHistory(5)
         accSoreHistory(5)=accSoreHistory(6)
-        accSoreHistory(6)=accSoreHistory(7)
-        accSoreHistory(7)=accSoreTemp
+        accSoreHistory(6)=accSoreTemp
         varianceArray = variance(accSoreHistory)
       }
       println(s"variance: $varianceArray, accuracy: $accScore")
